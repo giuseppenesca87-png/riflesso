@@ -1,0 +1,67 @@
+# Riflesso — il punto d'incontro sulla VPS.
+#
+# Sta sulla rete `edge` insieme agli altri siti della macchina e si fa
+# raggiungere da Caddy **per nome di container**: dentro il container di
+# Caddy 127.0.0.1 e' Caddy stesso.
+# Nessuna porta pubblicata sull'host: l'unica via d'ingresso e' Caddy.
+
+services:
+  ponte:
+    build: .
+    image: riflesso-ponte
+    container_name: riflesso-ponte
+    restart: unless-stopped
+    # Recinto. Il ponte puo' stare su una macchina con altri servizi:
+    # qualunque cosa vada storta deve morire qui dentro.
+    # Provato il 01/09/2026 che senza tetto un solo PC lo portava da 50 a
+    # 462 MB in pochi secondi. Sola lettura perché non scrive niente per
+    # costruzione; /tmp in memoria per i pochi file temporanei di Deno.
+    mem_limit: 256m
+    pids_limit: 128
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      PORT: "8080"
+      BIND: "0.0.0.0"
+    # Il rimbalzo (TURN, README «Il rimbalzo: /ice»). TURN_HOST e TURN_SECRET
+    # si leggono da `coturn/.env`: **lo stesso file** che legge il compose di
+    # coturn, scritto da `coturn/installa.sh`. Una fonte sola, apposta: prima
+    # erano due file da tenere allineati a mano, e con due segreti diversi
+    # coturn risponde 401 a ogni credenziale — dal telefono si vede solo
+    # «rimbalzo muto», senza un errore da nessuna parte. `required: false`:
+    # senza quel file il ponte parte lo stesso, col rimbalzo spento, e lo
+    # scrive all'avvio (`docker compose logs ponte` → «rimbalzo (TURN): spento»);
+    # con il file, «rimbalzo (TURN): acceso» e /health risponde `relay:true`.
+    # Le altre due righe del file (TURN_IPV4, TURN_IPV6) servono al collaudo e
+    # qui dentro non fanno niente. Il ponte continua a non fare chiamate in
+    # uscita: la credenziale la calcola da solo. (Sintassi lunga di env_file:
+    # Compose 2.24 o più recente.)
+    env_file:
+      - path: coturn/.env
+        required: false
+    # Rete propria, condivisa SOLO con Caddy. Sulla rete `edge` il ponte
+    # vedeva gli altri container per nome, e una
+    # shell dentro questo container sarebbe stata dentro casa loro. Qui
+    # l'unico vicino e' edge-caddy, che ci arriva per nome come prima.
+    networks:
+      - riflesso-net
+    healthcheck:
+      test: ["CMD", "deno", "eval", "await fetch('http://127.0.0.1:8080/health').then(r=>r.ok?0:Deno.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  riflesso-net:
+    external: true

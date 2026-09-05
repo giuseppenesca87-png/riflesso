@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Riflesso — your Claude chats</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1">
+<meta name="theme-color" content="#0d0c0c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Riflesso">
+<meta name="format-detection" content="telephone=no">
+<!-- Quale versione sta servendo l'host: `curl http://localhost:7654/ | grep riflesso-build`.
+     Il giro scorso la prova e' stata fatta su una build vecchia senza accorgersene. -->
+<meta name="riflesso-build" content="2.1 · due strade: casa e ponte · gzip, ETag, elenco in push, tasto della voce · 2026-09-04">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" href="/icon-180.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- ============ 1. ACCOPPIAMENTO ============
+     Un indirizzo e un codice, e non importa da che rete si arriva: la stessa
+     schermata vale in casa e fuori. Niente qui nomina il Wi-Fi, perché il
+     Wi-Fi non è una condizione. -->
+<section id="pair" class="screen">
+  <div class="pair-box">
+    <h1>Riflesso</h1>
+    <p class="sub" data-i18n="pair.sub">Your Claude conversations, from your phone.</p>
+    <p class="hint" data-i18n="pair.hint">Open Riflesso on your Mac and type the eight-digit code you see. Scan the QR beside it and you skip this screen.</p>
+    <input id="pinInput" class="pin" type="text" inputmode="numeric" pattern="[0-9]*"
+           maxlength="8" placeholder="00000000" autocomplete="one-time-code">
+    <button id="pairBtn" class="primary" data-i18n="pair.button">Pair</button>
+    <p id="pairError" class="error" role="alert"></p>
+    <!-- Da che strada si sta entrando: casa o ponte. Si legge prima ancora
+         di battere il codice. -->
+    <p id="pairRoad" class="hint road"></p>
+  </div>
+</section>
+
+<!-- ============ 2. ELENCO CHAT ============ -->
+<section id="list" class="screen hidden">
+  <header class="bar">
+    <button id="listBack" class="icon hidden" data-i18n-aria="aria.back_list" aria-label="Back to chats">‹</button>
+    <div class="bar-title">
+      <!-- `data-i18n` e non solo la riscrittura in `relocalize`: quella
+           scatta al **cambio** di lingua, e chi apre l'app già in italiano
+           un cambio non lo fa mai. Restava «Chats» sopra «13 conversazioni». -->
+      <span id="listName" class="bar-name" data-i18n="list.chats">Chats</span>
+      <span id="listCount" class="bar-sub"></span>
+    </div>
+    <button id="settingsBtn" class="icon" data-i18n-aria="aria.settings" aria-label="Settings">⋯</button>
+  </header>
+  <!-- La riga di stato: il pallino dice se la diretta è aperta, il testo
+       dice **da che strada** (rete di casa o ponte — e per il ponte se si è
+       in casa o fuori). Il 01/09/2026 l'app ripiegava in silenzio e ci si è
+       persa una serata: adesso la strada è sempre scritta. -->
+  <div id="roadBar" class="roadbar"><span id="dot" class="dot"></span><span id="statusText"></span></div>
+  <div class="searchwrap">
+    <input id="chatSearch" class="search" type="search" data-i18n-placeholder="list.search_chats" placeholder="Search titles and messages…"
+           autocomplete="off" autocorrect="off" spellcheck="false">
+  </div>
+  <div id="chatList" class="chatlist"></div>
+</section>
+
+<!-- ============ 3. LA CONVERSAZIONE ============ -->
+<section id="chat" class="screen hidden">
+  <header class="bar">
+    <button id="backBtn" class="icon" data-i18n-aria="aria.back" aria-label="Back">‹</button>
+    <div class="bar-title">
+      <span id="chatTitle" class="bar-name">…</span>
+      <span id="chatSub" class="bar-sub tappable" role="button" tabindex="0"></span>
+    </div>
+    <button id="modelBtn" class="modelchip" data-i18n-aria="aria.model" aria-label="Model for this chat">Model ⌄</button>
+  </header>
+
+  <div id="thread" class="thread">
+    <div id="moreWrap" class="more-wrap hidden">
+      <button id="moreBtn" class="more" data-i18n="chat.load_more">Load earlier messages</button>
+    </div>
+    <div id="messages"></div>
+    <div id="live"></div>
+  </div>
+
+  <div id="working" class="working hidden">
+    <span class="spin">✳</span><span id="workingText"></span>
+  </div>
+  <div id="chatNote" class="note hidden"></div>
+
+  <!-- L'allegato scelto ma non ancora partito. Lo si vede **prima** di
+       premere invio, e si può togliere: una foto che parte senza che tu
+       l'abbia vista è il modo migliore di sbagliare conversazione. -->
+  <div id="pendingFile" class="pending-file hidden">
+    <span id="pfThumb" class="thumb">📎</span>
+    <span class="meta">
+      <span id="pfName" class="fname"></span>
+      <span id="pfSize" class="fsize"></span>
+    </span>
+    <button id="pfDrop" type="button" class="drop" data-i18n-aria="aria.drop_file" aria-label="Remove attachment">✕</button>
+    <span id="pfBar" class="bar-progress"></span>
+  </div>
+
+  <form id="composer" class="composer">
+    <!-- Su iPhone questo apre già «Libreria foto / Scatta foto / Sfoglia»:
+         non serve un menu nostro, e quello del sistema sa fare cose che noi
+         non sapremmo (l'accesso a una sola foto, per dire). -->
+    <input id="fileInput" type="file" class="hidden" accept="image/*,application/pdf,text/*,.md,.txt,.csv,.json,.zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.heic,.heif">
+    <button id="attachBtn" type="button" class="attach" data-i18n-aria="aria.attach" aria-label="Attach a photo or a file">＋</button>
+    <!-- Il tasto della voce: registra sul telefono, il Mac trascrive, il
+         testo finisce nel riquadro qui accanto per essere riletto. Nasce
+         nascosto e compare solo dove il microfono può funzionare (contesto
+         sicuro, e `audio/mp4` — l'unico formato che il Mac legge): un tasto
+         che non fa niente è peggio di nessun tasto. -->
+    <button id="micBtn" type="button" class="mic hidden" data-i18n-aria="aria.mic" aria-label="Dictate a message">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+        <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/>
+        <path d="M6 11a6 6 0 0 0 12 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M12 17v3M9 20h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <textarea id="msg" rows="1" data-i18n-placeholder="chat.placeholder" placeholder="Message this chat…"
+              autocomplete="off" autocorrect="on" spellcheck="true"></textarea>
+    <button id="stopBtn" type="button" class="stop hidden" data-i18n-aria="aria.stop" aria-label="Stop">■</button>
+    <button id="sendBtn" type="submit" class="send" data-i18n-aria="aria.send" aria-label="Send">↑</button>
+  </form>
+</section>
+
+<!-- ============ PANNELLI ============ -->
+<div id="sheetBackdrop" class="backdrop hidden"></div>
+
+<section id="modelSheet" class="sheet hidden">
+  <header class="sheet-head">
+    <h2 data-i18n="model.sheet">Model & effort</h2>
+    <button class="icon" data-close>✕</button>
+  </header>
+  <div class="sheet-body">
+    <div id="modelList" class="modellist"></div>
+    <h3 class="sheet-sub" data-i18n="model.effort">Effort</h3>
+    <div id="effortList" class="modellist"></div>
+    <p class="fineprint" id="effortNote"></p>
+  </div>
+</section>
+
+<section id="settingsSheet" class="sheet hidden">
+  <header class="sheet-head">
+    <h2 data-i18n="settings.title">Settings</h2>
+    <button class="icon" data-close>✕</button>
+  </header>
+
+  <div class="sheet-body">
+    <div id="cliWarn" class="warn hidden"></div>
+
+    <label class="row">
+      <span data-i18n="settings.language">Language</span>
+      <select id="langSel">
+        <option value="en">English</option>
+        <option value="it">Italiano</option>
+      </select>
+    </label>
+
+    <label class="row">
+      <span data-i18n="settings.input">Input to the Mac</span>
+      <select id="modeSel">
+        <option value="hybrid" data-i18n="settings.hybrid">Hybrid (recommended)</option>
+        <option value="pid" data-i18n="settings.direct">Direct only</option>
+        <option value="hid" data-i18n="settings.global">Global only</option>
+      </select>
+    </label>
+
+    <label class="row check">
+      <span data-i18n="settings.enter">Return to send</span>
+      <input id="sendOnEnter" type="checkbox" checked>
+    </label>
+
+    <!-- Qui c'era «Attiva fuori casa su questo telefono»: non serve più.
+         Il QR porta a un indirizzo che vale ovunque, e la strada migliore la
+         sceglie la pagina da sola (net.js), dicendo quale. -->
+
+    <div class="row col">
+      <!-- Le sessioni aperte da un'attivita' programmata sono centinaia:
+           stanno qui, spente, e non nell'elenco delle conversazioni. -->
+      <button id="routinesBtn" class="secondary">Scheduled routines</button>
+      <button id="forgetBtn" class="danger" data-i18n="settings.forget">Forget this device</button>
+    </div>
+
+    <p class="fineprint" data-i18n-html="settings.blurb">
+      Writing from here goes <b>through Claude on the Mac</b>: the message is
+      delivered into the same conversation and sent from there, so it shows up
+      on the Mac too. If someone is using the Mac, sending waits instead of
+      typing over them.
+    </p>
+    <!-- La dettatura: il tasto del microfono dove può funzionare, e la
+         dettatura della tastiera del telefono dappertutto — anche sulla rete
+         di casa, dove la pagina è in http e il microfono in pagina non esiste.
+         Il testo lo sceglie `updateMic()` in app.js a seconda del caso. -->
+    <p class="fineprint" id="dictationHint"></p>
+    <div id="diag" class="diag"></div>
+  </div>
+</section>
+
+<script>
+/* Safari su iPhone ignora `user-scalable=no` nel viewport: la pizzicata si
+   blocca solo intercettando i suoi eventi `gesture*`. Il doppio tocco lo ferma
+   `touch-action` nel CSS. */
+for (const t of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(t, (e) => e.preventDefault(), { passive: false });
+}
+</script>
+<script src="/tunnel.js"></script>
+<script src="/i18n.js"></script>
+<script src="/net.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

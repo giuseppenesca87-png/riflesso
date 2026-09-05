@@ -1,0 +1,97 @@
+# Riflesso — il rimbalzo (coturn), in un container SUO, separato dal ponte.
+#
+# Separato per due ragioni: chi non vuole il rimbalzo non lo avvia (il ponte
+# senza le due variabili funziona esattamente come prima), e se il rimbalzo
+# cade non porta giù il ponte — che continua a far trovare telefono e Mac.
+#
+# Prima di `docker compose up`: `./installa.sh`. Scrive `.env` (il segreto)
+# e `turnserver.local.conf` (la configurazione con gli indirizzi di QUESTA
+# macchina). Senza quei due file questo compose si rifiuta di partire, e lo
+# fa apposta: coturn con un file di configurazione che non trova continua
+# «with default settings» (misurato su 4.17.2), cioè in ascolto su ogni
+# indirizzo — l'opposto di quello che vogliamo.
+
+services:
+  rimbalzo:
+    # Versione inchiodata: è quella misurata (17 MB a riposo, 0% di CPU) e
+    # quella su cui sono state provate le righe della configurazione. Alpine
+    # perché è la più piccola; dentro gira già come `nobody:nogroup`.
+    # Non l'immagine ufficiale nuda: la nostra, che le toglie la capacità
+    # dal file (vedi Dockerfile). Senza quel passaggio `cap_drop: ALL`
+    # impedisce al kernel di eseguire il binario, e il container si riavvia
+    # all'infinito con «operation not permitted».
+    build: .
+    image: riflesso-coturn:4.17.2
+    container_name: riflesso-rimbalzo
+    restart: unless-stopped
+
+    # MAI `ports:`. Le porte pubblicate da Docker scavalcano il firewall
+    # (verificato: le catene di Docker vengono prima di quelle di ufw), e la
+    # 3478 sarebbe aperta al mondo senza comparire nell'elenco delle porte
+    # aperte. Con la rete dell'host coturn si lega da solo al SOLO indirizzo
+    # scritto in `listening-ip`, e le tre regole del firewall (README, solo
+    # IPv4) sono le uniche porte d'ingresso.
+    network_mode: host
+
+    # L'entrypoint dell'immagine fa `eval` su ogni argomento e di default
+    # chiama `detect-external-ip`, che è una chiamata verso un servizio di
+    # terzi. Qui si salta tutto: si lancia `turnserver` e basta, con il file
+    # generato da installa.sh e il segreto letto da `.env`. `:?` ferma Compose
+    # se il segreto manca, con la frase tra parentesi come spiegazione.
+    entrypoint: ["turnserver"]
+    command:
+      - "-c"
+      - "/etc/coturn/turnserver.conf"
+      - "--static-auth-secret=${TURN_SECRET:?manca .env con TURN_SECRET: lancia ./installa.sh}"
+
+    # Utente non root (nobody:nogroup dell'immagine, scritto qui perché non
+    # dipenda da come è fatta l'immagine). Le porte sono tutte sopra la 1024.
+    user: "65534:65534"
+
+    # Recinto. La sponda sta sulla stessa macchina di altri progetti con dati
+    # di clienti: qualunque cosa vada storta deve morire qui dentro.
+    # 128 MB sono sette volte il consumo misurato a riposo. I pid contano anche
+    # i thread, e coturn ne apre uno per core: 128 basta a una VPS piccola.
+    mem_limit: 128m
+    pids_limit: 128
+    read_only: true
+    # In memoria: il pid, e la cartella del database che coturn apre comunque
+    # (l'immagine la dichiara come VOLUME: montandola come tmpfs non nasce
+    # nessun volume anonimo su disco). /var/tmp perché coturn apre un registro
+    # lì prima ancora di leggere `log-file=stdout`.
+    tmpfs:
+      - /tmp
+      - /var/lib/coturn
+      - /var/tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    # L'UNICO montaggio: il file generato da installa.sh, in sola lettura.
+    # Niente volumi di altri container, niente magazzino dei certificati di
+    # Caddy. `create_host_path: false` fa fallire l'avvio se il file non c'è,
+    # invece di lasciar creare a Docker una cartella vuota al suo posto (con la
+    # cartella vuota coturn partirebbe «with default settings», vedi sopra).
+    volumes:
+      - type: bind
+        source: ./turnserver.local.conf
+        target: /etc/coturn/turnserver.conf
+        read_only: true
+        bind:
+          create_host_path: false
+
+    # Una domanda STUN alla porta 3478 dell'indirizzo pubblico, con l'attrezzo
+    # che l'immagine porta con sé. ${TURN_HOST} viene da `.env`.
+    healthcheck:
+      test: ["CMD", "turnutils_stunclient", "-p", "3478", "${TURN_HOST:?manca .env con TURN_HOST: lancia ./installa.sh}"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

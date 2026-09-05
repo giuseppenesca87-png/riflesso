@@ -1,0 +1,27 @@
+# Prodotti di compilazione
+host-mac/.build/
+host-mac/build/
+.build/
+build/
+
+# Le cose personali della build (identita' dell'app, firma, indirizzo del ponte)
+host-mac/local.env
+
+# Quello che i collaudi lasciano in giro: schermate, transcript di prova, gettoni
+test-output/
+
+# Materiale promozionale e schermate: non fanno parte del codice
+promo/
+
+# Dipendenze, se un giorno ce ne fossero
+node_modules/
+
+# Rumore di sistema e dell'ambiente
+.DS_Store
+*.log
+.playwright-mcp/
+.env
+.env.*
+# ...ma il modello sì: senza, chi installa non sa quali variabili servono.
+!.env.example
+!**/.env.example

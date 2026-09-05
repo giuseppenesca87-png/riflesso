@@ -1,0 +1,30 @@
+# Riflesso — il punto d'incontro. Aggiunto il 25/08/2026.
+# Vhost isolato: non tocca gli altri siti della stessa macchina.
+# Raggiunge il ponte per nome di container sulla rete `edge`, come fanno gli
+# altri siti di questa macchina (dentro edge-caddy 127.0.0.1 e' Caddy stesso).
+#
+# Il ponte tiene le richieste aperte fino a 50 secondi: e' un long-poll, le due
+# parti si aspettano li'. Nessun timeout scritto a mano, cosi' resta quello di
+# Caddy, che non taglia.
+ponte.example.com {
+	encode zstd gzip
+	# Chi bussa non sceglie il proprio indirizzo. Il freno del ponte conta le
+	# richieste per IP leggendo X-Forwarded-For, e Caddy per impostazione
+	# predefinita ACCODA l'IP vero a quello che il client si è scritto da solo:
+	# il primo restava quello dell'attaccante, che così cambiava contatore a
+	# ogni richiesta. Provato il 01/09/2026: 120 richieste con IP finto → 0
+	# bloccate. Qui l'intestazione viene sovrascritta con l'indirizzo vero.
+	reverse_proxy riflesso-ponte:8080 {
+		header_up X-Forwarded-For {remote_host}
+	}
+	# Sette giorni di accessi, ruotati, sul volume persistente di Caddy. Non
+	# tocca la cecità sui contenuti (le buste restano opache): serve a poter
+	# rispondere a un reclamo di abuso invece di subirlo alla cieca.
+	log {
+		output file /data/riflesso-access.log {
+			roll_size 10mb
+			roll_keep 7
+			roll_keep_for 168h
+		}
+	}
+}

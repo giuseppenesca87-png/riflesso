@@ -1,0 +1,4 @@
+# Scritti da installa.sh: il segreto e gli indirizzi di QUESTA macchina.
+# Non si versionano, e non si copiano da una macchina a un'altra.
+.env
+turnserver.local.conf

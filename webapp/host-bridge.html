@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Riflesso — ponte</title>
+<!--
+  Questa pagina non è per il telefono: gira **dentro il Mac**, in una WKWebView
+  senza finestra, e serve solo a fare il pezzo WebRTC che macOS ha già in casa.
+  Caricata da 127.0.0.1 è in «contesto sicuro» (quindi WebRTC esiste) ed è
+  same-origin col server locale (quindi il proxy è una fetch, non un client
+  HTTP scritto a mano). Vedi docs/10-FUORICASA.md §2.
+-->
+</head>
+<body>
+<script src="tunnel.js"></script>
+<script src="host-bridge.js"></script>
+</body>
+</html>

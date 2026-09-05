@@ -1,0 +1,5 @@
+{
+  // Configurazione di Deno per il ponte. Non serve niente di particolare: il
+  // file esiste perche' il Dockerfile lo copia insieme a `main.ts`, e cosi'
+  // `deno cache` e `deno run` hanno una radice di progetto esplicita.
+}

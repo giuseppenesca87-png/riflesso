@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>Riflesso</string>
+	<key>CFBundleDisplayName</key>
+	<string>Riflesso</string>
+	<key>CFBundleExecutable</key>
+	<string>Riflesso</string>
+	<!-- L'identita' dell'app. Questo e' il valore neutro di partenza: macOS
+	     lega a questo nome i permessi (Accessibilita') e le preferenze, quindi
+	     **una volta installata non va piu' cambiato**. Chi compila per se' puo'
+	     mettere il proprio in `host-mac/local.env` (`RIFLESSO_BUNDLE_ID`), che
+	     `build.sh` scrive qui nel pacchetto: il file sorgente resta questo. -->
+	<key>CFBundleIdentifier</key>
+	<string>app.riflesso.host</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>2.1</string>
+	<key>CFBundleVersion</key>
+	<string>3</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<!-- Riflesso vive nella **barra dei menu**, non nel Dock. -->
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Riflesso</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Riflesso serves the web page to your phone on your home network. Nothing leaves the network.</string>
+	<!-- La pagina ponte del «fuori casa» gira in una WKWebView e viene
+	     caricata da http://127.0.0.1:7654: senza questa riga il trasporto
+	     sicuro di sistema la bloccherebbe. Vale solo per la rete locale. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_http._tcp</string>
+	</array>
+	<!-- L'indirizzo di partenza del ponte (`https://…`). Vuoto: si scrive nel
+	     pannello, dietro la riga «Ponte». `build.sh` lo riempie da
+	     `host-mac/local.env` (`RIFLESSO_BRIDGE`) per chi compila per se'. -->
+	<key>RiflessoBridgeDefault</key>
+	<string></string>
+</dict>
+</plist>

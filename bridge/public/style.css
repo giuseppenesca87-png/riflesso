@@ -1,0 +1,1461 @@
+/* ------------------------------------------------------------------
+   Riflesso — foglio di stile unico, nessuna dipendenza.
+
+   Pensato per un telefono in mano: tocchi grandi, testo che non esce mai
+   dallo schermo, barra di invio sempre sopra la tastiera.
+
+   Tre idee, e tutto il resto viene da lì.
+
+   1. **Il buio non è nero piatto.** Il fondo è una notte tiepida, non un
+      grigio da terminale: l'accento è l'arancio di Claude, e sopra un
+      grigio freddo litiga. I piani sono quattro (`--bg` → `--sunk` →
+      `--surface` → `--raised`) e si distinguono per *luce*, non per
+      cornici: un filo chiaro sul bordo alto (`--edge`) e un'ombra sotto.
+      È il modo in cui si vede uno spessore vero senza disegnare scatole.
+
+   2. **Le barre stanno sopra il contenuto, non accanto.** Sfondo velato
+      con `backdrop-filter`: il testo che scorre sotto si intravede e si
+      capisce che la pagina continua. Costa zero e non è una libreria.
+
+   3. **Il movimento serve a capire.** Nessuna animazione dura più di
+      220 ms, tutte con la stessa curva (`--curva`), e chi ha chiesto meno
+      movimento non ne vede nessuna: c'è un blocco `prefers-reduced-motion`
+      in fondo che le spegne tutte in una volta.
+
+   Quello che NON si può fare, ed è il motivo di certe scelte:
+   niente `@font-face` e niente CDN — la pagina la serve il Mac anche senza
+   Internet, quindi il carattere è quello di sistema e le icone sono glifi.
+------------------------------------------------------------------ */
+
+:root {
+  /* --- i piani --- */
+  --bg: #0d0c0c;          /* il fondo, sotto tutto */
+  --sunk: #131211;        /* incassato: campo di ricerca, blocchi di codice */
+  --bg-2: #161514;        /* le barre, prima della velatura */
+  --surface: #1c1a19;     /* le bolle di Claude, le righe dei pannelli */
+  --surface-2: #232120;   /* sopra una superficie: intestazioni, pastiglie */
+  --raised: #2a2725;      /* premuto, o selezionato */
+
+  /* --- i bordi sono luce, non righe --- */
+  --edge: rgba(255, 252, 250, .07);       /* filo comune */
+  --edge-soft: rgba(255, 252, 250, .045); /* separatori dentro un elenco */
+  --edge-lit: rgba(255, 252, 250, .12);   /* il bordo alto, dove batte la luce */
+
+  /* --- inchiostro ---
+
+     `--faint` era `#746c67`: su `--bg` fa **3,80 : 1**, sotto il minimo di
+     4,5 per il testo piccolo. E non è decorazione — ci stanno sopra l'ora di
+     ogni riga, i conteggi, il testo in fondo alle impostazioni: al sole non
+     si leggevano. `#8a827c` porta a **5,17 : 1**.
+
+     `--ghost` è il gradino che mancava: le cose che nessuno legge (caret,
+     segnaposto, freccine) possono stare a 3,4 : 1, il testo no.
+     **Regola: se è testo che qualcuno deve leggere, il minimo è `--faint`.
+     Sotto ci va solo la decorazione.** */
+  --text: #f2ede9;    /* 16,8 : 1 */
+  --dim: #a49c96;     /*  7,2 : 1 */
+  --faint: #8a827c;   /*  5,2 : 1  (era 3,8) */
+  --ghost: #6d655f;   /*  3,4 : 1 — solo decorazione */
+
+  /* --- l'accento: questo non si cambia, lega l'app a Claude --- */
+  --accent: #d97757;
+  --accent-soft: rgba(217, 119, 87, .16);
+  --accent-line: rgba(217, 119, 87, .34);
+  --on-accent: #24120b;
+
+  /* --- il mio messaggio: l'arancio scaldato e portato al buio --- */
+  --me: linear-gradient(168deg, #8a4e37 0%, #6f3d2b 100%);
+  --me-flat: #7a442f;
+  --me-text: #fbf1ea;
+
+  --bad: #e57a70;
+  --bad-bg: rgba(229, 122, 112, .12);
+  --bad-line: rgba(229, 122, 112, .3);
+  --ok: #6fc98c;
+
+  /* --- forme ---
+     Erano dieci raggi (5, 6, 7, 10, 12, 14, 15, 20, 26, 999) senza una
+     regola. Sono quattro più il tondo, e l'annidamento ha una regola sola:
+     **raggio interno = raggio esterno − imbottitura**. */
+  --r-s: 8px;     /* dentro qualcos'altro: pastiglie, celle, select */
+  --r-m: 12px;    /* schede, riquadri, bottoni secondari */
+  --r-l: 16px;    /* campi grandi, bottone primario */
+  --r-xl: 22px;   /* fogli, barra di scrittura */
+  --r-pill: 999px;
+  --radius: var(--r-l);
+
+  /* --- spazio: base 4 ---
+     C'erano 3, 5, 6, 7, 9, 10, 11, 13, 14, 15, 17, 18, 21, 22. Le uniche
+     eccezioni ammesse sono 1px per i fili, 3px per lo scarto fra le due
+     righe di un `.chatrow`, e i 44px dei bersagli. */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 20px; --s6: 26px; --s7: 34px;
+
+  /* --- ombre: una sola sorgente di luce, dall'alto --- */
+  --ombra-1: 0 1px 2px rgba(0, 0, 0, .34);
+  --ombra-2: 0 4px 16px rgba(0, 0, 0, .34);
+  --ombra-3: 0 -8px 40px rgba(0, 0, 0, .5);
+
+  /* --- movimento --- */
+  --curva: cubic-bezier(.2, 0, 0, 1);
+  --veloce: 120ms var(--curva);
+  --medio: 200ms var(--curva);
+
+  --vh: 100vh;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  /* Il carattere è quello del telefono: su iPhone è SF, e nessun font
+     scaricato lo batte — men che meno uno che senza Internet non arriva. */
+  font: 400 16px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  font-synthesis-weight: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+}
+
+/* Un velo caldissimo in alto: il buio ha una sorgente, non è una vernice. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto;
+  height: 320px;
+  background: radial-gradient(120% 100% at 50% -30%, rgba(217, 119, 87, .1), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+button, input, textarea, select { font: inherit; color: inherit; font-family: inherit; }
+button { background: none; border: 0; cursor: pointer; }
+.hidden { display: none !important; }
+
+/* Il fuoco si vede, e si vede dappertutto. Prima ce l'avevano solo `.pin`,
+   `.search` e i `textarea`. `:focus-visible` **non** scatta al tocco: sul
+   telefono non cambia niente, serve a chi naviga con la tastiera. */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ------------------------------------------------------------------
+   LA SCALA — nove misure che si riusano, al posto delle quindici sparse
+   che c'erano. Non sono variabili CSS perché la spaziatura fra le lettere
+   non entra nella scorciatoia `font:`, e mezza scala in una variabile e
+   mezza fuori è peggio di una tabella scritta. I numeri qui sotto sono
+   quelli che si trovano nei selettori, e non ce ne sono altri.
+
+     display  33 / 1,05 / −.032em / 700   il marchio dell'accoppiamento
+     code     29 / 1    / .30em   / 600   le otto cifre
+     h1       22 / 1,15 / −.024em / 700   #listName, .sheet-head h2
+     h2       20 / 1,25 / −.020em / 650   .bubble h1
+     bar      17 / 1,2  / −.015em / 650   #chatTitle, .bar-name
+     row    16,5 / 1,25 / −.014em / 640   .chatrow-title, .bubble h3
+     body     16 / 1,55 / 0       / 400   il testo di Claude, textarea
+     sub      14 / 1,35 / 0       / 400   .chatrow-prev, righe dei pannelli
+     meta     12 / 1,2  / .01em   / 500   .chatrow-when, .bar-sub
+     micro  11,5 / 1,2  / .07em   / 700   .groupsep-name, .sheet-sub
+------------------------------------------------------------------ */
+
+.screen {
+  position: fixed;
+  inset: 0;
+  height: var(--vh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* ================= barra in alto =================
+
+   Velata, non opaca: sotto si vede scorrere la conversazione, e questo dice
+   da solo che la pagina continua oltre il bordo. Dove `backdrop-filter` non
+   c'è, resta il colore pieno di riserva. */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: calc(var(--safe-top) + 10px) 8px 10px;
+  background: color-mix(in srgb, var(--bg-2) 82%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  backdrop-filter: blur(22px) saturate(1.5);
+  border-bottom: 1px solid var(--edge);
+  flex: 0 0 auto;
+  z-index: 5;
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .bar { background: var(--bg-2); }
+}
+.bar-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding: 0 6px;
+}
+.bar-name {
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -.015em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* «Chat» era grande come il titolo di una riga, e una schermata dove tutto
+   è grande uguale non ha una cima. Vale solo per l'elenco: il titolo della
+   conversazione divide la barra col chip del modello e a 22 non ci sta. */
+#listName {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -.024em;
+}
+.bar-sub {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: .01em;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* I pulsanti tondi della barra. 42px è il minimo per un pollice; il tondo
+   arriva solo quando si preme, così a riposo la barra resta pulita. */
+.icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  font-size: 20px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  transition: background var(--veloce), transform var(--veloce);
+}
+.icon:active { background: var(--raised); transform: scale(.9); }
+/* La freccia «indietro» è un glifo di testo: da sola sembra sottile. */
+#backBtn, #listBack { font-size: 27px; font-weight: 300; padding-bottom: 3px; }
+
+.dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--bad);
+  vertical-align: middle;
+  box-shadow: 0 0 0 3px rgba(229, 122, 112, .16);
+}
+.dot.on { background: var(--ok); box-shadow: 0 0 0 3px rgba(111, 201, 140, .16); }
+
+/* La riga di stato sotto la barra dell'elenco: **da che strada** si sta
+   parlando col Mac (casa o ponte) e se la diretta è aperta. Piccola
+   e ferma, come la riga dei conteggi, ma c'è sempre: è la risposta alla
+   domanda «perché non va?», e va letta prima di chiederselo. */
+.roadbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px 2px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .01em;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 0 auto;
+}
+.roadbar #statusText { overflow: hidden; text-overflow: ellipsis; }
+/* Sulla schermata del codice la stessa informazione, come riga d'aiuto. */
+.pair-box .road { order: 7; font-size: 12.5px; }
+.pair-box .road:empty { display: none; }
+
+/* ================= accoppiamento =================
+
+   È la prima cosa che si vede dell'app, e per molti sarà l'unica prima di
+   decidere se fidarsi: qui la cura si nota. */
+
+#pair { align-items: center; justify-content: center; padding: var(--s6) var(--s5); }
+/* Le schermate sono in colonna e l'ordine si decide qui, non nell'HTML:
+   campo e bottone salgono sopra l'aiuto. Gli unici due elementi che si
+   toccano — campo e bottone — restano nell'ordine del documento, quindi il
+   giro con la tastiera non cambia. */
+.pair-box {
+  width: 100%;
+  max-width: 340px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  /* Centro **ottico**, non aritmetico: la tastiera arriva da sotto, e un
+     blocco centrato al pixel sembra basso. */
+  padding-bottom: calc(var(--safe-bottom) + 104px);
+  animation: sali 420ms var(--curva) both;
+}
+.pair-box h1 { order: 1; }
+.pair-box .sub { order: 2; }
+.pair-box .pin { order: 3; }
+.pair-box .primary { order: 4; }
+.pair-box .error { order: 5; }
+.pair-box .hint { order: 6; }
+/* Il marchio è di tinta unita e l'alone gli sta **dietro**, non dentro le
+   lettere: il gradiente ritagliato dal testo (`background-clip: text`)
+   sbiadisce le aste in basso e a 33px si legge peggio. La luce sta dietro
+   le cose, non ci vive dentro — è la regola di tutto il resto. */
+.pair-box h1 {
+  position: relative;
+  margin: 0 0 var(--s2);
+  font-size: 33px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -.032em;
+  color: var(--text);
+}
+.pair-box h1::before {
+  content: '';
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 260px; height: 180px;
+  margin: -90px 0 0 -130px;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(217, 119, 87, .2), transparent 72%);
+  pointer-events: none;
+  z-index: -1;
+}
+.sub { margin: 0 0 var(--s6); color: var(--dim); font-size: 15.5px; }
+/* L'aiuto è **sotto** il campo, non sopra: chi arriva col QR ha già le
+   cifre in mano e non deve leggere niente; chi le batte a mano trova la
+   spiegazione dove serve, cioè quando si è fermato. */
+.hint { color: var(--faint); font-size: 13.5px; line-height: 1.5; margin: var(--s5) 0 0; }
+/* Quante cifre mancano, senza contarle: la barra in fondo al campo si
+   riempie mentre si batte. È **il fondo del campo stesso**, non un
+   elemento in più — un `<input>` non ha figli, e l'HTML non si tocca.
+   Il contatore «8/8» dentro al campo l'avevo disegnato e buttato: con otto
+   cifre a 29px e .30em di spaziatura, a destra non resta posto e finisce
+   sopra le cifre **proprio quando il campo è pieno**. */
+.pin {
+  width: 100%;
+  padding: 17px 16px;
+  font-size: 29px;
+  font-weight: 600;
+  letter-spacing: .3em;
+  text-indent: .3em;          /* la spaziatura sposta il testo: si ricentra */
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  background-color: var(--sunk);
+  background-image: linear-gradient(var(--accent), var(--accent));
+  background-repeat: no-repeat;
+  background-position: 3px calc(100% - 3px);
+  background-size: calc(var(--riempi, 0) * (100% - 6px)) 3px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-l);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 var(--edge-lit), var(--ombra-1);
+  transition: border-color var(--medio), box-shadow var(--medio),
+              background-size var(--medio);
+}
+.pin::placeholder { color: var(--ghost); }
+.pin:focus {
+  outline: none;
+  border-color: var(--accent-line);
+  box-shadow: inset 0 1px 0 var(--edge-lit), 0 0 0 4px var(--accent-soft);
+}
+.primary {
+  width: 100%;
+  margin-top: var(--s3);
+  padding: var(--s4);
+  border-radius: var(--r-l);
+  background: linear-gradient(180deg, #e08765, var(--accent));
+  color: var(--on-accent);
+  font-weight: 650;
+  font-size: 16px;
+  box-shadow: var(--ombra-2), 0 6px 22px rgba(217, 119, 87, .18),
+              inset 0 1px 0 rgba(255, 255, 255, .22);
+  transition: transform var(--veloce), filter var(--veloce);
+}
+.primary:active { transform: scale(.98); filter: brightness(.94); }
+.primary:disabled { opacity: .55; box-shadow: none; }
+.error { color: var(--bad); min-height: 22px; font-size: 14px; margin-top: var(--s3); }
+
+/* ================= elenco chat ================= */
+
+.searchwrap {
+  padding: 8px 14px 10px;
+  background: color-mix(in srgb, var(--bg-2) 82%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  backdrop-filter: blur(22px) saturate(1.5);
+  border-bottom: 1px solid var(--edge);
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .searchwrap { background: var(--bg-2); }
+}
+.search {
+  width: 100%;
+  padding: 11px 15px;
+  background: var(--sunk);
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, .3);
+  -webkit-appearance: none;
+  transition: border-color var(--medio), box-shadow var(--medio);
+}
+.search::placeholder { color: var(--ghost); }
+.search:focus {
+  outline: none;
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.chatlist {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(var(--safe-bottom) + 12px);
+}
+
+/* --- le sezioni: i gruppi, come sul Mac ---
+
+   L'intestazione resta appiccicata in cima mentre si scorre, così si sa
+   sempre in quale gruppo si è. Chi non ha gruppi non vede niente di tutto
+   questo: l'elenco resta esattamente com'era. */
+/* Il filo è passato **sopra** l'intestazione e lo spazio è diventato
+   asimmetrico — 18 sopra, 7 sotto. Un'intestazione appartiene a quello che
+   le sta sotto: con lo spazio uguale galleggiava in mezzo, e il filo sotto
+   la staccava proprio dalle righe che presenta. Il filo non arriva ai
+   bordi, come i separatori delle righe. */
+.groupsep {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  width: 100%;
+  padding: 18px 16px 7px;
+  text-align: left;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  backdrop-filter: blur(18px) saturate(1.4);
+}
+.groupsep::before {
+  content: '';
+  position: absolute;
+  left: 16px; right: 16px; top: 0;
+  border-top: 1px solid var(--edge-soft);
+}
+/* La prima intestazione dell'elenco non ha niente sopra da separare. */
+.chatlist > .groupsep:first-child { padding-top: 10px; }
+.chatlist > .groupsep:first-child::before { border-top: 0; }
+@supports not (backdrop-filter: blur(1px)) {
+  .groupsep { background: var(--bg); }
+}
+/* Il nome del gruppo si scrive **come sta sul Mac**: niente maiuscole
+   forzate. «Casa» maiuscolo diventa un altro nome, e l'incarico era
+   di far vedere gli stessi. Il peso e la spaziatura bastano a farlo leggere
+   come un'intestazione. */
+/* «Casa» il gruppo e «Casa» la chat stanno a due righe di
+   distanza: a separarli è la **misura** (11,5 contro 16,5), non le
+   maiuscole forzate — «CASA» sarebbe un altro nome, e l'incarico era
+   far vedere gli stessi che stanno sul Mac. */
+.groupsep-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.groupsep .star { font-size: 10px; }
+/* Il conto è un numero che nessuno tocca: bordo, sfondo e imbottitura, per
+   tredici volte, erano una pastiglia intorno a niente. */
+.groupsep-n {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ghost);
+}
+.groupsep-caret {
+  flex: 0 0 auto;
+  font-size: 9px;
+  color: var(--ghost);
+  transition: transform var(--medio);
+}
+.groupsep.closed .groupsep-caret { transform: rotate(-90deg); }
+.groupsep:active { background: var(--surface); }
+
+.chatrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  padding: 11px 16px;
+  text-align: left;
+  color: inherit;
+  position: relative;
+  transition: background var(--veloce);
+}
+/* Il separatore parte dopo l'immagine, non da bordo a bordo: una riga
+   piena taglia l'elenco in tante scatole, questa lo tiene insieme.
+   72 = 16 di bordo + 44 di quadrato + 12 di scarto. */
+.chatrow::after {
+  content: '';
+  position: absolute;
+  left: 72px; right: 0; bottom: 0;
+  border-bottom: 1px solid var(--edge-soft);
+}
+.chatrow:last-child::after { border-bottom: 0; }
+.chatrow:active { background: var(--surface); }
+.chatrow.closed { opacity: .55; }
+
+.avatar {
+  width: 44px; height: 44px;
+  flex: 0 0 44px;
+  /* 13 e non 15: su una riga alta 65, un quadrato di 44 a raggio 15
+     tendeva al cerchio, e un cerchio è una faccia — queste sono
+     conversazioni. */
+  border-radius: 13px;
+  background: var(--surface-2);
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  border: 1px solid var(--edge);
+  box-shadow: inset 0 1px 0 var(--edge-lit);
+}
+/* Ogni famiglia il suo colore: si riconosce il modello senza leggerlo.
+   Sui dati veri però le conversazioni sono quasi tutte Opus, e in colonna
+   diventavano tredici quadrati arancioni identici. Non si toglie — il
+   giorno che compare una Sonnet paga — ma abbassa la voce: iniziali
+   all'86% invece che piene. Smette di gridare e torna a fare da àncora. */
+.avatar[data-m^="Opus"], .avatar[data-m^="Fable"] {
+  background: linear-gradient(160deg, #4a3125, #35241c);
+  color: rgba(230, 171, 141, .86); border-color: rgba(217, 119, 87, .26);
+}
+.avatar[data-m^="Sonnet"] {
+  background: linear-gradient(160deg, #253a47, #1c2b34);
+  color: rgba(143, 198, 224, .86); border-color: rgba(143, 198, 224, .22);
+}
+.avatar[data-m^="Haiku"] {
+  background: linear-gradient(160deg, #26392c, #1d2b21);
+  color: rgba(147, 211, 163, .86); border-color: rgba(147, 211, 163, .22);
+}
+
+/* --- il bordo destro della riga ---
+
+   Ora e turni erano tutti e due a destra ma con due larghezze diverse:
+   l'ora libera, i turni dentro una pastiglia con bordo e sfondo. Il
+   risultato era un bordo destro sfrangiato. Adesso sono **una colonna
+   sola**, larghezza minima 44 e cifre tabellari, così `ieri/29`,
+   `20:22/29` e `ora/1150` cadono sulla stessa verticale.
+
+   La colonna la fa la griglia, non un elemento nuovo: `.chatrow-top` e
+   `.chatrow-bottom` diventano trasparenti (`display: contents`) e i loro
+   figli si dispongono da soli. L'HTML non si tocca. */
+.chatrow-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(44px, auto);
+  align-items: baseline;
+  row-gap: 3px;
+}
+.chatrow-top, .chatrow-bottom { display: contents; }
+.chatrow-title {
+  grid-column: 2; grid-row: 1;
+  min-width: 0;
+  font-weight: 640;
+  font-size: 16.5px;
+  line-height: 1.25;
+  letter-spacing: -.014em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Fuori dal titolo, cosi' non entra nel testo e non falsa il taglio con i
+   puntini quando il titolo e' lungo. Dentro «Fissato» non si disegna
+   proprio: otto stelle per dire quello che dice già l'intestazione sopra
+   (vedi `chatRowHTML` in `app.js`). */
+.star { color: var(--accent); flex: 0 0 auto; font-size: 12px; }
+.chatrow .star { grid-column: 1; grid-row: 1; margin-right: 5px; }
+.chatrow-when {
+  grid-column: 3; grid-row: 1;
+  justify-self: end;
+  padding-left: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .01em;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.chatrow-prev {
+  grid-column: 1 / 3; grid-row: 2;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.you { color: var(--faint); }
+.chatrow-turns {
+  grid-column: 3; grid-row: 2;
+  justify-self: end;
+  padding-left: 10px;
+  font-size: 11.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ghost);
+}
+.livedot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  margin-right: 6px;
+  box-shadow: 0 0 0 0 rgba(111, 201, 140, .5);
+  animation: battito 2s infinite;
+}
+@keyframes battito {
+  0% { box-shadow: 0 0 0 0 rgba(111, 201, 140, .45); }
+  70% { box-shadow: 0 0 0 6px rgba(111, 201, 140, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(111, 201, 140, 0); }
+}
+
+.empty { color: var(--faint); text-align: center; padding: 44px 24px; font-size: 15px; }
+
+/* ================= la conversazione ================= */
+
+.thread {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 16px 6px;
+  scroll-behavior: smooth;
+}
+
+.daysep {
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 18px 0 12px;
+}
+
+/* A separare i turni è lo **spazio**, non una scatola: 26 prima di una
+   risposta, 22 dopo la mia. Era 3 e 3, e con la bolla di Claude tolta
+   (vedi sotto) tre pixel non bastano più a dire dove finisce chi. */
+.row { display: flex; margin: 3px 0; }
+.row.me { justify-content: flex-end; margin: 26px 0 22px; }
+/* La riga di Claude **sfonda i margini del filo**, e arriva esattamente al
+   bordo del padding box: né un pixel meno né uno in più. Serve perché le
+   tabelle si prendano i 390 pieni (vedi `.tablewrap`). Il margine negativo
+   sta qui e non sulla tabella apposta: qui il conto torna a livello di
+   `#messages`, sulla tabella sfonderebbe la bolla e `uitest` conta
+   giustamente gli elementi che escono dal loro riquadro. */
+.row.claude { justify-content: flex-start; margin: 0 -16px 26px; }
+/* Le bolle entrano dal basso, una volta sola. Solo quelle già scritte:
+   la risposta in arrivo si ridisegna ogni 70 ms, e animarla la farebbe
+   tremare invece che apparire. */
+#messages > .row { animation: entra 240ms var(--curva) both; }
+
+.bubble {
+  max-width: 82%;
+  padding: 11px 15px;
+  border-radius: var(--r-l);
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+  font-size: 15.5px;
+  line-height: 1.45;
+}
+/* **La mia bolla resta, ed è l'unica sullo schermo.** Guadagna personalità
+   proprio perché non ha più concorrenza. L'angolo basso-destro stretto è
+   la coda: dice da che parte arriva. */
+.bubble.me {
+  background: var(--me);
+  color: var(--me-text);
+  border-radius: 20px 20px 6px 20px;
+  box-shadow: var(--ombra-1), inset 0 1px 0 rgba(255, 255, 255, .1);
+}
+
+/* --- Claude non parla dentro una bolla ---
+
+   Quella non era una bolla: larga il 96%, con un bordo da 1px e uno sfondo
+   che sul fondo si distingueva appena, era **una cornice attorno all'intero
+   schermo**. E costava: 32px di larghezza su 390 fra imbottiture e bordi;
+   tre cornici annidate attorno a ogni tabella e a ogni blocco di codice
+   (bolla + riquadro + celle); e zero informazione, perché che l'abbia
+   scritto Claude si capisce già dal fatto che è a sinistra e prende tutta
+   la riga.
+
+   Tolta. Il testo di Claude sta sulla pagina, a 16/1,55 — questa è roba che
+   si legge, non che si sbircia. L'imbottitura orizzontale resta **sulla
+   bolla** e non sul filo, così le tabelle possono annullarla e arrivare al
+   bordo dello schermo senza uscire da nessun riquadro.
+
+   La classe `.bubble.claude` resta con questo nome: `uitest` la cerca.
+   Cambia solo cosa disegna. */
+.bubble.claude {
+  width: 100%;
+  max-width: 100%;
+  padding: 0 16px;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  font-size: 16px;
+  line-height: 1.55;
+}
+/* Un'immagine la cornice ce l'ha per conto suo: non sfonda niente. */
+.bubble.img { padding: 5px; width: auto; max-width: calc(82% - 16px); }
+.row.claude > .bubble.img { margin-left: 16px; }
+.bubble.img img { max-width: 100%; display: block; border-radius: 12px; }
+
+/* --- markdown ---
+
+   Senza la cornice della bolla i blocchi devono respirare da soli: i titoli
+   prendono 22 sopra e 8 sotto — un titolo appartiene a quello che gli sta
+   sotto — e i paragrafi 12. */
+.bubble p { margin: 0 0 12px; }
+.bubble p:last-child { margin-bottom: 0; }
+.bubble h1, .bubble h2, .bubble h3, .bubble h4, .bubble h5, .bubble h6 {
+  margin: 22px 0 8px; line-height: 1.25; letter-spacing: -.02em; font-weight: 650;
+  text-wrap: balance;
+}
+.bubble h1 { font-size: 20px; }
+.bubble h2 { font-size: 18px; }
+.bubble h3 { font-size: 16.5px; letter-spacing: -.014em; font-weight: 640; }
+.bubble h4, .bubble h5, .bubble h6 { font-size: 15.5px; }
+.bubble > :first-child { margin-top: 0; }
+.bubble ul, .bubble ol { margin: 0 0 12px; padding-left: 21px; }
+.bubble li { margin: 4px 0; }
+.bubble li::marker { color: var(--ghost); }
+.bubble .nested { margin: 4px 0; }
+/* Una citazione non è un'azione: il filo a sinistra torna a essere luce,
+   non accento. L'arancio è la cosa che puoi toccare. */
+.bubble blockquote {
+  margin: 12px 0;
+  padding: 2px 0 2px 13px;
+  border-left: 2px solid var(--edge-lit);
+  color: var(--dim);
+}
+.bubble hr { border: 0; border-top: 1px solid var(--edge); margin: 16px 0; }
+.bubble a { color: #8fbcea; text-decoration: underline; text-underline-offset: 2px; }
+.bubble code {
+  background: rgba(255, 252, 250, .08);
+  padding: 1.5px 5px;
+  border-radius: 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .86em;
+}
+.bubble.me code { background: rgba(0, 0, 0, .24); }
+
+/* Le tabelle scorrono dentro il loro riquadro — ma il riquadro adesso si
+   prende i 390 pieni. Su un telefono è la differenza fra una tabella che si
+   legge e una che si trascina: dentro il 96% di una bolla con due
+   imbottiture e due bordi ne restavano 326.
+
+   Il margine negativo annulla **esattamente** l'imbottitura della bolla, e
+   la bolla è larga quanto il padding box del filo: la tabella arriva al
+   bordo dello schermo e non un pixel oltre. Niente sfonda niente.
+
+   I fili verticali fra le celle spariscono: erano il terzo bordo annidato
+   in fila (bolla, riquadro, celle) e si vedevano tutti e tre. */
+.tablewrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 14px 0;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-s);
+  background: var(--sunk);
+}
+.bubble.claude > .tablewrap {
+  margin: 14px -16px;
+  border: 0;
+  border-top: 1px solid var(--edge);
+  border-bottom: 1px solid var(--edge);
+  border-radius: 0;
+  /* Il velo sul bordo destro che avevo disegnato non si può fare senza un
+     elemento in più: dentro un riquadro che scorre un `::after` scorre con
+     il contenuto (e il velo camminerebbe), e uno sfondo si dipinge
+     **dietro** il testo, quindi non vela niente. A dire che la tabella
+     continua resta la cosa più semplice: adesso tocca il bordo dello
+     schermo, e una colonna tagliata a metà si legge da sola. */
+}
+.tablewrap table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.tablewrap th, .tablewrap td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--edge-soft);
+  text-align: left;
+  white-space: nowrap;
+}
+.bubble.claude > .tablewrap th, .bubble.claude > .tablewrap td { padding: 9px 16px; }
+.tablewrap th { background: var(--surface-2); font-weight: 650; font-size: 12.5px; }
+.tablewrap tr:last-child td { border-bottom: 0; }
+
+/* --- blocchi di codice ---
+   Senza la cornice della bolla intorno, respirano di più: 14 invece di 10. */
+.code {
+  margin: 14px 0;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-m);
+  overflow: hidden;
+  background: var(--sunk);
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, .4);
+}
+.code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 6px 5px 12px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--edge);
+}
+.code-lang {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.copy {
+  font-size: 12px;
+  color: var(--dim);
+  padding: 5px 11px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  transition: background var(--veloce), color var(--veloce);
+}
+/* Il ritorno di un tocco non è un'azione: l'arancio serve a dire «questa la
+   puoi toccare adesso», non «l'hai toccata». */
+.copy:active { background: var(--raised); color: var(--text); }
+.code pre {
+  margin: 0;
+  padding: 11px 13px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.code code {
+  background: none;
+  padding: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre;
+  color: #d8d2cc;
+}
+
+/* --- strumenti: una riga sola ---
+
+   In una chat da 300 turni gli strumenti sono la maggioranza dei blocchi.
+   Restano una riga alta 34px, senza cornice piena: un fondo appena più
+   chiaro basta a separarli, e la conversazione resta leggibile. */
+.tool, .fold {
+  margin: 10px 0;
+  border: 1px solid var(--edge-soft);
+  border-radius: var(--r-m);
+  background: rgba(255, 252, 250, .022);
+  overflow: hidden;
+  transition: border-color var(--veloce);
+}
+.tool.bad { border-color: var(--bad-line); background: var(--bad-bg); }
+.tool-head, .fold-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 12px;
+  text-align: left;
+  font-size: 13.5px;
+  color: var(--dim);
+  min-width: 0;
+  transition: background var(--veloce);
+}
+.tool-head:active, .fold-head:active { background: rgba(255, 252, 250, .05); }
+.tool-ico { flex: 0 0 auto; opacity: .65; font-size: 12px; }
+.tool-name { flex: 0 0 auto; color: var(--text); font-weight: 550; }
+.tool-brief {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--ghost);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.caret { flex: 0 0 auto; color: var(--ghost); font-size: 11px; transition: transform var(--medio); }
+.tool-head.open .caret, .fold-head.open .caret { transform: rotate(180deg); }
+.tool-body, .fold-body { padding: 0 10px 10px; font-size: 14px; }
+.tool-body .code, .fold-body .code { margin-top: 8px; }
+.tool-note { color: var(--faint); font-size: 12.5px; margin: 8px 0 0; }
+.fold-head { color: var(--faint); }
+.fold-body { color: var(--dim); }
+.fold.think { background: transparent; border-style: dashed; }
+
+.chip {
+  margin: 8px auto;
+  padding: 5px 13px;
+  background: var(--surface);
+  border: 1px solid var(--edge-soft);
+  border-radius: 999px;
+  color: var(--faint);
+  font-size: 12.5px;
+  width: fit-content;
+  max-width: 92%;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip.warn { color: var(--bad); border-color: var(--bad-line); background: var(--bad-bg); }
+/* Blocchi di servizio: ci sono, ma non chiedono attenzione. */
+.chip.faint { color: var(--ghost); font-size: 11.5px; border-style: dashed; background: none; }
+
+/* --- una fila di strumenti consecutivi, chiusa in una riga --- */
+.toolgroup {
+  margin: 10px 0;
+  border: 1px solid var(--edge-soft);
+  border-radius: var(--r-m);
+  background: rgba(255, 252, 250, .022);
+}
+.toolgroup.bad { border-color: var(--bad-line); }
+.toolgroup > .tool-head { border-radius: var(--r-m); }
+.toolgroup-body {
+  padding: 0 8px 8px;
+  /* Gli strumenti dentro il gruppo non ripetono la cornice del gruppo. */
+  border-top: 1px solid var(--edge-soft);
+  margin-top: -1px;
+  padding-top: 8px;
+}
+.toolgroup-body .tool { background: var(--surface); }
+
+.more-wrap { text-align: center; padding: 10px 0 14px; }
+.more {
+  padding: 9px 20px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  color: var(--dim);
+  font-size: 13.5px;
+  box-shadow: var(--ombra-1);
+  transition: background var(--veloce), transform var(--veloce);
+}
+.more:active { background: var(--raised); transform: scale(.97); }
+
+/* --- risposta in arrivo ---
+
+   Sfonda i margini come la risposta finita, se no la riga arriva stretta e
+   si allarga di 32px nell'istante in cui si posa. Quello che non è la
+   bolla — strumenti, ragionamenti, la riga «sta lavorando» — riprende il
+   rientro di 16 per conto suo. */
+.live-row { flex-direction: column; align-items: stretch; gap: 3px; }
+.live-row .bubble { max-width: 100%; }
+.live-row > .tool, .live-row > .fold, .live-row > .working {
+  margin-left: 16px;
+  margin-right: 16px;
+}
+
+.note {
+  padding: 10px 16px;
+  font-size: 13.5px;
+  color: var(--dim);
+  background: var(--surface);
+  border-top: 1px solid var(--edge);
+  animation: sali 240ms var(--curva) both;
+}
+.note.bad { color: var(--bad); background: var(--bad-bg); }
+
+/* ================= barra di invio ================= */
+
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 9px 10px calc(9px + var(--safe-bottom));
+  background: color-mix(in srgb, var(--bg-2) 88%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  backdrop-filter: blur(22px) saturate(1.5);
+  border-top: 1px solid var(--edge);
+  flex: 0 0 auto;
+  position: relative;
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .composer { background: var(--bg-2); }
+}
+.composer textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  max-height: 140px;
+  padding: 11px 16px;
+  background: var(--sunk);
+  border: 1px solid var(--edge);
+  border-radius: var(--r-xl);
+  color: var(--text);
+  resize: none;
+  overflow-y: auto;
+  line-height: 1.35;
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, .3);
+  -webkit-appearance: none;
+  transition: border-color var(--medio), box-shadow var(--medio);
+}
+.composer textarea::placeholder { color: var(--ghost); }
+.composer textarea:focus {
+  outline: none;
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.send, .stop, .attach, .mic {
+  width: 44px; height: 44px;
+  flex: 0 0 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--veloce), filter var(--veloce), background var(--veloce);
+}
+.send {
+  background: linear-gradient(180deg, #e08765, var(--accent));
+  color: var(--on-accent);
+  font-size: 19px;
+  font-weight: 700;
+  box-shadow: var(--ombra-1), 0 4px 14px rgba(217, 119, 87, .22),
+              inset 0 1px 0 rgba(255, 255, 255, .22);
+}
+.send:active { transform: scale(.9); filter: brightness(.94); }
+.stop {
+  background: var(--bad); color: #fff; font-size: 13px; font-weight: 700;
+  box-shadow: var(--ombra-1);
+}
+.stop:active { transform: scale(.9); }
+/* Il graffetta: c'è ma non compete col tasto d'invio, che è l'unico
+   arancione della schermata. */
+.attach {
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  color: var(--dim);
+  font-size: 20px;
+  line-height: 1;
+}
+.attach:active { background: var(--raised); transform: scale(.9); }
+.attach[data-on="1"] { color: var(--accent); border-color: var(--accent-line); }
+
+/* --- il tasto della voce ---
+
+   Un tondo come il ＋, fra il ＋ e il campo: a riposo non compete col tasto
+   d'invio. Mentre registra diventa rosso e **batte**, come il pallino verde
+   delle chat attive: lo si vede anche con l'occhio sul campo di scrittura.
+   Mentre il Mac trascrive si spegne a metà e non risponde al tocco. */
+.mic {
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  color: var(--dim);
+  line-height: 1;
+  padding: 0;
+}
+.mic svg { display: block; }
+.mic:active { background: var(--raised); transform: scale(.9); }
+.mic.rec {
+  background: var(--bad);
+  border-color: transparent;
+  color: #fff;
+  animation: battito-rosso 1.6s infinite;
+}
+@keyframes battito-rosso {
+  0% { box-shadow: 0 0 0 0 rgba(229, 122, 112, .5); }
+  70% { box-shadow: 0 0 0 9px rgba(229, 122, 112, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(229, 122, 112, 0); }
+}
+.mic.busy { opacity: .5; pointer-events: none; }
+
+/* --- l'allegato in attesa, sopra la barra ---
+
+   Si vede **prima** di mandare, e si può togliere: un allegato che parte
+   senza che tu l'abbia visto è il modo migliore per mandare la foto
+   sbagliata nella conversazione sbagliata. */
+.pending-file {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 10px;
+  padding: 8px 8px 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  border-radius: var(--r-m);
+  box-shadow: var(--ombra-1), inset 0 1px 0 var(--edge-lit);
+  animation: sali 200ms var(--curva) both;
+}
+.pending-file .thumb {
+  width: 40px; height: 40px;
+  flex: 0 0 40px;
+  border-radius: var(--r-s);
+  object-fit: cover;
+  background: var(--sunk);
+  border: 1px solid var(--edge);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--dim);
+}
+.pending-file .meta { flex: 1; min-width: 0; }
+.pending-file .fname {
+  font-size: 14px;
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pending-file .fsize { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+/* 44 e non 34: era l'unico bersaglio della pagina sotto il minimo, e non è
+   un bersaglio qualunque — è quello che toglie l'allegato sbagliato prima
+   che parta. */
+.pending-file .drop {
+  flex: 0 0 auto;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  color: var(--dim);
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--veloce), color var(--veloce);
+}
+.pending-file .drop:active { background: var(--raised); color: var(--text); }
+/* La barra di avanzamento è il bordo inferiore del riquadro che si riempie:
+   niente elemento in più, e si vede senza guardarla. */
+.pending-file .bar-progress {
+  position: absolute;
+  left: 0; bottom: 0; height: 2px; width: 0;
+  background: var(--accent);
+  transition: width var(--medio);
+}
+
+/* ================= pannelli ================= */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .55);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  z-index: 20;
+  animation: sfuma 200ms var(--curva) both;
+}
+.sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  max-height: 88vh;
+  background: var(--bg-2);
+  border-top: 1px solid var(--edge-lit);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  z-index: 21;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--ombra-3);
+  animation: apri 260ms var(--curva) both;
+}
+/* Il trattino in cima: dice «questo pannello si tira giù» senza scriverlo. */
+.sheet::before {
+  content: '';
+  position: absolute;
+  top: 7px; left: 50%;
+  width: 38px; height: 4px;
+  margin-left: -19px;
+  border-radius: 999px;
+  background: var(--raised);
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 10px 12px 20px;
+  border-bottom: 1px solid var(--edge-soft);
+}
+.sheet-head h2 {
+  margin: 0; font-size: 22px; font-weight: 700;
+  line-height: 1.15; letter-spacing: -.022em;
+}
+.sheet-body {
+  overflow-y: auto;
+  padding: var(--s3) var(--s5) calc(var(--s6) + var(--safe-bottom));
+  -webkit-overflow-scrolling: touch;
+}
+
+/* --- le righe stanno dentro una scheda, mai sciolte ---
+
+   È la stessa grammatica del pannello del Mac, ed è quello che fa sembrare
+   le due facce la stessa app. Il filo sta **fra** le righe, non sotto
+   ognuna: sotto l'ultima disegnava il fondo di una scatola che non c'era.
+
+   La scheda la fanno le righe stesse, con `:first-of-type` e
+   `:last-of-type` sui `label`: l'HTML non si tocca, e una riga nascosta in
+   mezzo sparisce senza lasciare buchi. */
+.row.check, .sheet-body .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s3) var(--s3) var(--s3) var(--s4);
+  margin: 0;
+  background: rgba(255, 252, 250, .035);
+  box-shadow: inset 0 0 0 1px var(--edge-soft);
+}
+.sheet-body label.row + label.row { box-shadow: inset 0 0 0 1px var(--edge-soft), inset 0 1px 0 var(--edge-soft); }
+.sheet-body label.row:first-of-type {
+  border-radius: var(--r-m) var(--r-m) 0 0;
+  box-shadow: inset 0 0 0 1px var(--edge-soft), inset 0 1px 0 var(--edge-lit);
+}
+.sheet-body label.row:last-of-type { border-radius: 0 0 var(--r-m) var(--r-m); }
+.sheet-body .row.col {
+  flex-direction: column; align-items: stretch;
+  background: none; box-shadow: none; padding: 0; gap: 0;
+  margin-top: var(--s6);
+}
+.row select {
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  border-radius: var(--r-s);
+  color: var(--text);
+  padding: 9px 12px;
+  max-width: 58%;
+  -webkit-appearance: none;
+  appearance: none;
+  /* La freccina la disegna un gradiente: nessuna immagine da scaricare. */
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ghost) 50%),
+    linear-gradient(135deg, var(--ghost) 50%, transparent 50%);
+  background-position: right 14px center, right 9px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 30px;
+}
+
+/* Una casella da 24 px è metà del bersaglio minimo, e in mezzo a una fila
+   di menu a tendina non si capisce che è dello stesso tipo. Diventa
+   l'interruttore che è: 50×30, si tocca, e da acceso è dell'unico arancio
+   che questa schermata si può permettere. */
+.row.check input {
+  flex: 0 0 auto;
+  width: 50px; height: 30px;
+  margin: 0;
+  border-radius: var(--r-pill);
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1px var(--edge);
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  transition: background var(--medio);
+}
+.row.check input::after {
+  content: '';
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: #f2ede9;
+  box-shadow: var(--ombra-1);
+  transition: transform var(--medio);
+}
+.row.check input:checked { background: var(--accent); box-shadow: none; }
+.row.check input:checked::after { transform: translateX(20px); }
+
+/* I comandi erano quattro bottoni pieni, sciolti e tutti uguali fra loro:
+   tre che aprono qualcosa e uno che cancella. Diventano righe con la
+   freccina, dentro la loro scheda. */
+.secondary, .danger {
+  padding: var(--s3) var(--s3) var(--s3) var(--s4);
+  background: rgba(255, 252, 250, .035);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--edge-soft);
+  color: var(--text);
+  font-size: 15px;
+  text-align: left;
+  transition: background var(--veloce);
+}
+.sheet-body .secondary::after { content: '\203a'; float: right; color: var(--ghost); }
+.sheet-body .secondary + .secondary { box-shadow: inset 0 0 0 1px var(--edge-soft), inset 0 1px 0 var(--edge-soft); }
+.sheet-body .secondary:first-of-type {
+  border-radius: var(--r-m) var(--r-m) 0 0;
+  box-shadow: inset 0 0 0 1px var(--edge-soft), inset 0 1px 0 var(--edge-lit);
+}
+.sheet-body .secondary:has(+ .danger) { border-radius: 0 0 var(--r-m) var(--r-m); }
+.secondary:active, .danger:active { background: var(--raised); }
+/* **La distruttiva va trovata, non notata.** Era l'oggetto più appariscente
+   delle Impostazioni: fondo, bordo e testo rossi, in fondo a una schermata
+   dove non c'è nient'altro di rosso. Adesso è piatta e staccata: chi la
+   cerca la trova subito lo stesso, chi non la cerca non ci inciampa. */
+.danger {
+  margin-top: var(--s6);
+  border-radius: var(--r-m);
+  background: rgba(229, 122, 112, .07);
+  box-shadow: none;
+  color: var(--bad);
+}
+.warn {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border-radius: var(--r-m);
+  background: var(--bad-bg);
+  border: 1px solid var(--bad-line);
+  color: #eeb9b1;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.fineprint { color: var(--faint); font-size: 12.5px; margin: 18px 0 0; line-height: 1.55; }
+.fineprint code { background: var(--surface); padding: 1.5px 5px; border-radius: 5px; }
+.diag {
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--sunk);
+  border: 1px solid var(--edge-soft);
+  border-radius: var(--r-s);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--faint);
+  white-space: pre-wrap;
+}
+
+/* Niente zoom: la pizzicata e il doppio tocco non ingrandiscono piu' la pagina.
+   `pan-x pan-y` lascia intatto lo scorrimento, toglie solo l'ingrandimento. */
+html, body { touch-action: pan-x pan-y; }
+
+/* Scelta del modello: righe grandi, si toccano col pollice. */
+.bar-sub.tappable { cursor: pointer; }
+.modellist { display: flex; flex-direction: column; gap: 2px; }
+.modelrow {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 14px 14px; border-radius: var(--r-m); background: transparent;
+  border: 1px solid transparent; width: 100%; font: inherit; color: inherit; text-align: left;
+  transition: background var(--veloce);
+}
+.modelrow:active { background: var(--surface-2); }
+.modelrow[aria-current="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  font-weight: 600;
+}
+.modelrow .dim { color: var(--faint); font-weight: 400; }
+.modelrow .tick { color: var(--accent); flex: 0 0 auto; }
+
+/* Il modello e' un pulsante, non una scritta: si deve vedere che si tocca.
+   E dice anche l'**impegno**, che è metà della risposta che stai per
+   ricevere: «Opus 4.8» da solo non dice se sta pensando o correndo. */
+.modelchip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  max-width: 47%;
+  padding: 6px 11px;
+  margin-right: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--edge);
+  background: var(--surface);
+  color: var(--dim);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.25;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 var(--edge-lit);
+  transition: background var(--veloce), transform var(--veloce);
+}
+.modelchip:active { background: var(--raised); transform: scale(.96); }
+/* Il nome del modello è l'unica cosa che si accorcia quando non ci sta:
+   l'impegno è corto e va letto per intero. */
+.modelchip .mc-model {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+  font-weight: 600;
+}
+.modelchip .mc-sep { flex: 0 0 auto; opacity: .4; }
+.modelchip .mc-effort { flex: 0 0 auto; color: var(--accent); font-weight: 600; }
+.modelchip .mc-caret { flex: 0 0 auto; opacity: .5; font-size: 10px; }
+
+.sheet-sub {
+  margin: 22px 0 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* «Sta lavorando»: la stessa riga che mostra il Mac — tempo, token, strumento. */
+.working {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 16px;
+  font-size: 12.5px; color: var(--dim);
+  background: color-mix(in srgb, var(--bg-2) 80%, transparent);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border-top: 1px solid var(--edge-soft);
+  font-variant-numeric: tabular-nums;
+}
+/* Dentro il filo della conversazione non è una barra: è una riga e basta. */
+#live .working { background: none; backdrop-filter: none; border-top: 0; padding: 6px 4px 2px; }
+.working .spin {
+  width: 13px; height: 13px;
+  flex: 0 0 13px;
+  border: 2px solid var(--edge-lit);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: gira .8s linear infinite;
+}
+@keyframes gira { to { transform: rotate(360deg); } }
+
+/* ================= i movimenti ================= */
+
+@keyframes entra {
+  from { opacity: 0; transform: translateY(8px) scale(.985); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes sali {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes apri {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@keyframes sfuma { from { opacity: 0; } to { opacity: 1; } }
+
+/* Chi ha chiesto meno movimento non ne vede: non è una preferenza estetica,
+   per qualcuno è mal di testa. Si spegne tutto in un colpo. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .thread { scroll-behavior: auto; }
+}
